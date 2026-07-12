@@ -1,0 +1,5 @@
+python-telegram-bot
+apscheduler
+pyTelegramBotAPI
+requests
+python-dateutil
