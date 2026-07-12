@@ -242,9 +242,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Команды:\n"
         "/at задача ! дата – добавить задачу (ответьте на сообщение исполнителя).\n"
         "  Примеры:\n"
-        "  /at Подготовить отчёт ! 2026-07-15\n"
         "  /at Подготовить отчёт ! 15.07.2026\n"
-        "  /at Подготовить отчёт ! 15 июля 2026\n"
         "/listtasks – показать все задачи (только админ).\n"
         "/help – эта справка.\n\n"
         "Участники могут подтвердить выполнение задач, написав в чат ++."
@@ -267,7 +265,6 @@ async def at(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(parts) < 2:
         await update.message.reply_text(
             "Формат: /at задача ! дата\n"
-            "Пример: /at Подготовить отчёт ! 2026-07-15"
         )
         return
 
@@ -294,7 +291,7 @@ async def at(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Ошибка парсинга даты '{date_str}': {e}")
         await update.message.reply_text(
             "Неверный формат даты. Используйте, например:\n"
-            "2026-07-15, 15.07.2026, 15 июля 2026"
+            "15.07.2026"
         )
         return
 
