@@ -232,7 +232,7 @@ async def handle_plus_plus(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Привет! Я бот для управления задачами.\n"
-        "/addtask – добавить задачу (только админ, ответом на сообщение пользователя).\n"
+        "/at – добавить задачу (только админ, ответом на сообщение пользователя).\n"
         "/listtasks – список всех задачи (только админ).\n"
         "/help – справка."
     )
@@ -240,17 +240,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Команды:\n"
-        "/addtask задача ! дата – добавить задача (ответьте на сообщение исполнителя).\n"
+        "/at задача ! дата – добавить задачу (ответьте на сообщение исполнителя).\n"
         "  Примеры:\n"
-        "  /addtask Подготовить отчёт ! 2026-07-15\n"
-        "  /addtask Подготовить отчёт ! 15.07.2026\n"
-        "  /addtask Подготовить отчёт ! 15 июля 2026\n"
+        "  /at Подготовить отчёт ! 2026-07-15\n"
+        "  /at Подготовить отчёт ! 15.07.2026\n"
+        "  /at Подготовить отчёт ! 15 июля 2026\n"
         "/listtasks – показать все задачи (только админ).\n"
         "/help – эта справка.\n\n"
         "Участники могут подтвердить выполнение задач, написав в чат ++."
     )
 
-async def addtask(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def at(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if user_id not in ADMIN_IDS:
         await update.message.reply_text("У вас нет прав для добавления задач.")
@@ -266,8 +266,8 @@ async def addtask(update: Update, context: ContextTypes.DEFAULT_TYPE):
     parts = text.split(maxsplit=1)
     if len(parts) < 2:
         await update.message.reply_text(
-            "Формат: /addtask задача ! дата\n"
-            "Пример: /addtask Подготовить отчёт ! 2026-07-15"
+            "Формат: /at задача ! дата\n"
+            "Пример: /at Подготовить отчёт ! 2026-07-15"
         )
         return
 
@@ -310,7 +310,7 @@ async def addtask(update: Update, context: ContextTypes.DEFAULT_TYPE):
     schedule_reminders(task_id, due_date_str)
 
     await update.message.reply_text(
-        f"✅ Задача добавлено для {target_username}:\n{task_text}\nДедлайн: {due_date_str}"
+        f"✅ Задача добавлена для {target_username}:\n{task_text}\nДедлайн: {due_date_str}"
     )
     logger.info(f"Задача {task_id} добавлена, дедлайн {due_date_str}")
 
@@ -377,7 +377,7 @@ def main():
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("addtask", addtask))
+    application.add_handler(CommandHandler("at", at))
     application.add_handler(CommandHandler("listtasks", listtasks))
     application.add_handler(MessageHandler(filters.Text("++"), handle_plus_plus))
 
