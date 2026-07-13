@@ -5,8 +5,7 @@ import html
 import asyncio
 import re
 from dateutil import parser
-from telegram import Update
-from telegram.constants import ParseMode
+from telegram import Update, constants
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
@@ -25,10 +24,11 @@ DB_NAME = "tasks.db"
 scheduler = AsyncIOScheduler()
 app = None
 
-# ===== База данных =====
+# ===== Инициализация БД (добавлена таблица users) =====
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
+    # Таблица задач
     c.execute('''CREATE TABLE IF NOT EXISTS tasks
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   task TEXT,
@@ -37,6 +37,7 @@ def init_db():
                   admin_id INTEGER,
                   day_before_sent INTEGER DEFAULT 0,
                   deadline_sent INTEGER DEFAULT 0)''')
+    # Таблица назначений
     c.execute('''CREATE TABLE IF NOT EXISTS assignments
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   task_id INTEGER,
@@ -44,9 +45,45 @@ def init_db():
                   username TEXT,
                   confirmed INTEGER DEFAULT 0,
                   FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE)''')
+    # Новая таблица пользователей
+    c.execute('''CREATE TABLE IF NOT EXISTS users
+                 (user_id INTEGER PRIMARY KEY,
+                  username TEXT,
+                  first_name TEXT,
+                  last_name TEXT,
+                  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     conn.commit()
     conn.close()
 
+# ===== Работа с пользователями =====
+def save_user(user_id, username=None, first_name=None, last_name=None):
+    """Сохраняет или обновляет пользователя в БД"""
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute('''INSERT OR REPLACE INTO users (user_id, username, first_name, last_name, updated_at)
+                 VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)''',
+              (user_id, username, first_name, last_name))
+    conn.commit()
+    conn.close()
+
+def get_user_by_username(username):
+    """Возвращает (user_id, username, first_name, last_name) или None"""
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("SELECT user_id, username, first_name, last_name FROM users WHERE username = ?", (username,))
+    row = c.fetchone()
+    conn.close()
+    return row
+
+def get_user_by_id(user_id):
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("SELECT user_id, username, first_name, last_name FROM users WHERE user_id = ?", (user_id,))
+    row = c.fetchone()
+    conn.close()
+    return row
+
+# ===== Остальные функции работы с задачами (без изменений) =====
 def add_task(task_text, due_date_str, chat_id, admin_id, users):
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
@@ -154,7 +191,6 @@ async def send_day_before_reminder(task_id, retries=3):
     users_text = ", ".join(mentions)
 
     admin_mention = f'<a href="tg://user?id={admin_id}">Админ</a>'
-    # ИСПРАВЛЕНО: текст "Напоминание" вместо "Напоминание за сутки"
     message_text = (
         f"⏰ Напоминание: {users_text}, вам была дана задача:\n"
         f"{html.escape(task_text)}\n"
@@ -167,7 +203,7 @@ async def send_day_before_reminder(task_id, retries=3):
             await app.bot.send_message(
                 chat_id=chat_id,
                 text=message_text,
-                parse_mode=ParseMode.HTML,
+                parse_mode=constants.ParseMode.HTML,
                 read_timeout=60,
                 write_timeout=60
             )
@@ -219,7 +255,7 @@ async def send_deadline_reminder(task_id, retries=3):
             await app.bot.send_message(
                 chat_id=chat_id,
                 text=message_text,
-                parse_mode=ParseMode.HTML,
+                parse_mode=constants.ParseMode.HTML,
                 read_timeout=60,
                 write_timeout=60
             )
@@ -259,6 +295,8 @@ def schedule_reminders(task_id, due_date_str):
 async def handle_plus_plus(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     username = update.effective_user.username or update.effective_user.first_name
+    # Сохраняем пользователя (на всякий случай)
+    save_user(user_id, username, update.effective_user.first_name, update.effective_user.last_name)
 
     tasks = get_active_tasks_for_user(user_id)
     if not tasks:
@@ -273,6 +311,13 @@ async def handle_plus_plus(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"✅ {html.escape(username)}, задача выполнена и удалена из списка. Молодец!"
     )
+
+# ===== Сохранение пользователя при любом сообщении (кроме команд) =====
+async def handle_any_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Сохраняем любого пользователя, который пишет боту (в ЛС или в группе)
+    user = update.effective_user
+    if user:
+        save_user(user.id, user.username, user.first_name, user.last_name)
 
 # ===== Команды админа =====
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -300,22 +345,22 @@ async def at(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("У вас нет прав для добавления задач.")
         return
 
+    # Сохраняем самого админа (на всякий случай)
+    save_user(user_id, update.effective_user.username, update.effective_user.first_name, update.effective_user.last_name)
+
     text = update.message.text
-    # ИСПРАВЛЕНО: удаляем саму команду "/at" (первое слово)
-    # Разбиваем по пробелам, удаляем первый элемент, собираем обратно
     parts = text.split()
     if not parts:
         await update.message.reply_text("Пустая команда.")
         return
-    # удаляем первый элемент (команду)
+    # убираем команду /at
     parts = parts[1:]
     if not parts:
         await update.message.reply_text("Не указаны пользователи и задача.")
         return
     text_without_command = " ".join(parts)
 
-    # Извлекаем упоминания @username (с символом @ или без)
-    # Ищем все слова, начинающиеся с @, или просто username? Будем искать @\w+
+    # Извлекаем упоминания @username
     mentions = re.findall(r'@(\w+)', text_without_command)
     if not mentions:
         await update.message.reply_text(
@@ -357,14 +402,28 @@ async def at(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Получаем user_id для каждого username
     users = []
     for username in mentions:
+        # Сначала ищем в нашей БД
+        user_row = get_user_by_username(username)
+        if user_row:
+            user_id_found, username_found, first_name, last_name = user_row
+            users.append((user_id_found, username_found))
+            logger.info(f"Пользователь @{username} найден в БД (ID {user_id_found})")
+            continue
+
+        # Если в БД нет, пробуем через API
         try:
-            # Пытаемся получить информацию о пользователе
             chat = await context.bot.get_chat(f"@{username}")
             user_id_from_chat = chat.id
+            # Сохраняем найденного пользователя в БД
+            save_user(user_id_from_chat, username, chat.first_name, chat.last_name)
             users.append((user_id_from_chat, username))
+            logger.info(f"Пользователь @{username} найден через API (ID {user_id_from_chat})")
         except Exception as e:
-            logger.warning(f"Не удалось найти пользователя @{username}: {e}")
-            await update.message.reply_text(f"Пользователь @{username} не найден. Проверьте имя или попросите пользователя написать боту в личные сообщения.")
+            logger.warning(f"Не удалось найти пользователя @{username} ни в БД, ни через API: {e}")
+            await update.message.reply_text(
+                f"Пользователь @{username} не найден. Убедитесь, что он написал боту в личные сообщения "
+                f"или что username правильный."
+            )
             return
 
     if not users:
@@ -454,6 +513,8 @@ def main():
     application.add_handler(CommandHandler("at", at))
     application.add_handler(CommandHandler("listtasks", listtasks))
     application.add_handler(MessageHandler(filters.Text("++"), handle_plus_plus))
+    # Ловим все остальные сообщения (не команды) для сохранения пользователей
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_any_message))
 
     logger.info("Бот запущен и ожидает сообщения...")
     application.run_polling()
