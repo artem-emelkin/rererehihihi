@@ -272,7 +272,7 @@ async def send_deadline_reminder(task_id, retries=3):
 def schedule_reminders(task_id, due_date_str):
     due_date = parser.parse(due_date_str)
 # Если нужно скорректировать на -3 часа (например, для UTC+3)
-due_date = due_date - datetime.timedelta(hours=3)
+    due_date = due_date - datetime.timedelta(hours=3)
     if due_date.hour == 0 and due_date.minute == 0 and due_date.second == 0:
         due_date = due_date.replace(hour=23, minute=59, second=59)
 
