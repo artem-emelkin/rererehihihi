@@ -275,7 +275,6 @@ def schedule_reminders(task_id, due_date_str):
         due_date = due_date.replace(hour=23, minute=59, second=59)
 
     now = datetime.datetime.now()
-    now = now - 3
 
     day_before = due_date - datetime.timedelta(days=1)
     if day_before > now:
