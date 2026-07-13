@@ -18,7 +18,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ===== Конфигурация =====
-TOKEN = "8790618971:AAH4QQ29F5b7JUw7PW-EW4S2xTZXlE2R6eY"          # ваш токен
+TOKEN = "8703228304:AAFeucvEa_loFuKBLAcFLNFM01n_3D8vW7g"          # ваш токен
 ADMIN_IDS = [8071127858, 711314367]           # ваш ID (список)
 
 DB_NAME = "tasks.db"
