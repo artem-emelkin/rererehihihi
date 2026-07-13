@@ -275,6 +275,7 @@ def schedule_reminders(task_id, due_date_str):
         due_date = due_date.replace(hour=23, minute=59, second=59)
 
     now = datetime.datetime.now()
+    now = now - 3
 
     day_before = due_date - datetime.timedelta(days=1)
     if day_before > now:
@@ -309,7 +310,7 @@ async def handle_plus_plus(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Задача {task_id} удалена по подтверждению от пользователя {user_id}")
 
     await update.message.reply_text(
-        f"✅ {html.escape(username)}, задача выполнена и удалена из списка. Молодец!"
+        f"✅ {html.escape(username)}, задача выполнена и удалена из списка."
     )
 
 # ===== Сохранение пользователя при любом сообщении (кроме команд) =====
